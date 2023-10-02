@@ -1020,12 +1020,12 @@ def ucr_fig2(x_metric='Speedup', y_metric='Relative Accuracy',
 
 
 def main():
-    scan_speed_fig()
-    encode_speed_fig()
-    lut_speed_fig()
-    fig1()
-    ucr_fig2()
-    caltech_fig()
+    # scan_speed_fig()
+    # encode_speed_fig()
+    # lut_speed_fig()
+    # fig1()
+    # ucr_fig2()
+    # caltech_fig()
     # caltech_fig(y_metric='1 - NMSE')
     # caltech_fig(x_metric='ops', y_metric='1 - NMSE')
     cifar_fig()

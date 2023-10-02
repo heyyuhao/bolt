@@ -39,7 +39,7 @@ class VQMatmul(amm.ApproxMatmul, abc.ABC):
 
     def fit(self, A, B, Y=None):
         _, D = A.shape
-        if D < self.ncodebooks:
+        if D < self.ncodebooks: # number of A columns (D) should be >= num of subspace (C)
             raise amm.InvalidParametersException(
                 'D < C: {} < {}'.format(D, self.ncodebooks))
         self.enc.fit(A, B.T)
@@ -316,6 +316,7 @@ class MithralMatmul(VQMatmul):
             self.set_A(A)
         if self.luts is None:
             self.set_B(B)
+        # Yuhao: where AMM is used
         return self.enc.dists_enc(self.A_enc, self.luts,
                                   offset=self.offset, scale=self.scale)
 
@@ -324,3 +325,22 @@ class MithralPQ(MithralMatmul):
 
     def __init__(self, ncodebooks):
         super().__init__(ncodebooks=ncodebooks, lut_work_const=1)
+
+
+class IntellistreamAMM(MithralMatmul):
+
+    def __init__(self, ncodebooks, lut_work_const=-1):
+        super().__init__(ncodebooks=ncodebooks, lut_work_const=lut_work_const)
+        self.intellistream_amm_config_load_path = None
+        self.intellistream_amm_metric_save_path = None
+
+    def __call__(self, A, B):
+        import torch
+        A = torch.from_numpy(A)
+        B = torch.from_numpy(B)
+        torch.ops.load_library("/home/yuhao/Documents/work/SUTD/AMM/codespace/AMMBench/build/libIntelliStream.so")
+        # torch.ops.AMMBench.setTag('mm')
+        # return torch.ops.AMMBench.ammDefault(A, B).numpy()
+        # self.intellistream_amm_config_load_path = "/home/yuhao/Documents/work/SUTD/AMM/codespace/coofd_cifar.csv"
+        # self.intellistream_amm_metric_save_path = "/home/yuhao/Documents/work/SUTD/AMM/codespace/metric_cifar.csv"
+        return torch.ops.AMMBench.ammForMadness(A, B, self.intellistream_amm_config_load_path, self.intellistream_amm_metric_save_path).numpy()

@@ -150,7 +150,7 @@ def scan_timings():
 
 
 def mithral_amm_timings():
-    TIMINGS_PATH = os.path.join(TIMING_RESULTS_DIR, 'amm-mithral-timing.csv')
+    TIMINGS_PATH = os.path.join(TIMING_RESULTS_DIR, 'amm-mithral-timing.csv') # (Pdb) TIMING_RESULTS_DIR 'results/amm/timing'
     ORIG_HEADERS = ('dset dtype algo __ N D M C lutconst ___ '
                     't0 _0 t1 _1 t2 _2 t3 _3 t4 _4').split()
     USE_HEADERS = 'dset dtype algo N D M C lutconst t0 t1 t2 t3 t4'.split()

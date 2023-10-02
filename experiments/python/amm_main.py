@@ -11,6 +11,7 @@ from . import matmul_datasets as md
 from . import pyience as pyn
 from . import compress
 
+from . import amm_methods
 from . import amm_methods as methods
 
 from joblib import Memory
@@ -84,10 +85,15 @@ def _hparams_for_method(method_id):
                 for const in lut_work_consts:
                     params.append({'ncodebooks': m, 'lut_work_const': const})
             return params
+            # return [{'ncodebooks': 16, 'lut_work_const': 2}] # TODO lut_work_const? nnz? 
 
         return [{'ncodebooks': m} for m in mvals]
+    
     if method_id in [methods.METHOD_EXACT, methods.METHOD_SCALAR_QUANTIZE]:
         return [{}]
+    
+    if method_id == methods.METHOD_INTELLISTREAM_AMM: # parameter is set in config.csv, not here, just give a dummy value to make sure it does not affect the original codebase
+        return [{'ncodebooks': 16, 'lut_work_const': 2}]
 
     raise ValueError(f"Unrecognized method: '{method_id}'")
 
@@ -183,12 +189,15 @@ def _compute_metrics(task, Y_hat, compression_metrics=True, **sink):
         problem = task.info['problem']
         metrics['problem'] = problem
         if problem == 'softmax':
-            lbls = task.info['lbls_test'].astype(np.int32)
-            b = task.info['biases']
-            logits_amm = Y_hat + b
+            lbls = task.info['lbls_test'].astype(np.int32) # (10000,)
+            b = task.info['biases'] # (10,)
+            t = time.perf_counter()
+            logits_amm = Y_hat + b # (10000, 10) + (10,)
             logits_orig = Y + b
-            lbls_amm = np.argmax(logits_amm, axis=1).astype(np.int32)
+            lbls_amm = np.argmax(logits_amm, axis=1).astype(np.int32) # (10000,)
             lbls_orig = np.argmax(logits_orig, axis=1).astype(np.int32)
+            duration_secs = time.perf_counter() - t
+            print(f"+bias, softmax time: {duration_secs}")
             # print("Y_hat shape : ", Y_hat.shape)
             # print("lbls hat shape: ", lbls_amm.shape)
             # print("lbls amm : ", lbls_amm[:20])
@@ -294,6 +303,67 @@ def _eval_amm(task, est, fixedB=True, **metrics_kwargs):
 
     return metrics
 
+def _eval_amm_for_intellistream_amm(task, est, fixedB=True, intellistream_amm_config_load_path=None, 
+intellistream_amm_metric_save_path=None):
+    est.reset_for_new_task()
+    if fixedB:
+        est.set_B(task.W_test)
+        
+    est.intellistream_amm_metric_save_path = intellistream_amm_metric_save_path
+    est.intellistream_amm_config_load_path = intellistream_amm_config_load_path
+
+    ##### 1. run AMM #####
+    t = time.perf_counter()
+    # Y_hat = est.predict(task.X_test.copy(), task.W_test.copy())
+    Y_hat = est.predict(task.X_test, task.W_test)
+    # Y_hat = task.X_test @ task.W_test  # yep, zero error
+    duration_secs = time.perf_counter() - t
+
+    ##### 2. +bias, softmax, accuracy #####
+    Y = task.Y_test
+    diffs = Y - Y_hat
+    raw_mse = np.mean(diffs * diffs)
+    normalized_mse = raw_mse / np.var(Y)
+    metrics = {'raw_mse': raw_mse, 'normalized_mse': normalized_mse,
+               'corr': _cossim(Y - Y.mean(), Y_hat - Y_hat.mean()),
+               'cossim': _cossim(Y, Y_hat),  # 'bias': diffs.mean(),
+               'y_mean': Y.mean(), 'y_std': Y.std(),
+               'yhat_std': Y_hat.std(), 'yhat_mean': Y_hat.mean()}
+    problem = task.info['problem']
+    metrics['problem'] = problem
+    if problem == 'softmax':
+        lbls = task.info['lbls_test'].astype(np.int32) # (10000,)
+        b = task.info['biases'] # (10,)
+        t = time.perf_counter()
+        logits_amm = Y_hat + b # (10000, 10) + (10,)
+        logits_orig = Y + b
+        lbls_amm = np.argmax(logits_amm, axis=1).astype(np.int32) # (10000,)
+        lbls_orig = np.argmax(logits_orig, axis=1).astype(np.int32)
+        duration_secs = time.perf_counter() - t
+        print(f"+bias, softmax time: {duration_secs}")
+        # print("Y_hat shape : ", Y_hat.shape)
+        # print("lbls hat shape: ", lbls_amm.shape)
+        # print("lbls amm : ", lbls_amm[:20])
+        metrics['acc_amm'] = np.mean(lbls_amm == lbls)
+        metrics['acc_orig'] = np.mean(lbls_orig == lbls)
+    
+    metrics['secs'] = duration_secs
+    
+    metrics.update(est.get_speed_metrics(
+        task.X_test, task.W_test, fixedB=fixedB))
+    
+    ##### 3. save downstream metrics to the metric.csv saved from c++ AMM #####
+    import csv
+    with open(intellistream_amm_metric_save_path, mode='a', newline='') as file:
+        writer = csv.writer(file)
+
+        # Iterate through the dictionary items and write each item as a row
+        for key, value in metrics.items():
+            row_to_append = [key, value, type(value).__name__]
+            writer.writerow(row_to_append)
+
+    return metrics
+
 
 def _get_all_independent_vars():
     independent_vars = set(['task_id', 'method', 'trial'])
@@ -318,7 +388,8 @@ def _fitted_est_for_hparams(method_id, hparams_dict, X_train, W_train,
 def _main(tasks_func, methods=None, saveas=None, ntasks=None,
           verbose=1, limit_ntasks=-1, compression_metrics=False, # TODO uncomment below
           # verbose=3, limit_ntasks=-1, compression_metrics=False,
-          tasks_all_same_shape=False):
+          tasks_all_same_shape=False, intellistream_amm_config_load_path=None, intellistream_amm_metric_save_path=None):
+    
     methods = methods.DEFAULT_METHODS if methods is None else methods
     if isinstance(methods, str):
         methods = [methods]
@@ -331,7 +402,7 @@ def _main(tasks_func, methods=None, saveas=None, ntasks=None,
             print("running method: ", method_id)
         ntrials = _ntrials_for_method(method_id=method_id, ntasks=ntasks)
         # for hparams_dict in _hparams_for_method(method_id)[2:]: # TODO rm
-        for hparams_dict in _hparams_for_method(method_id):
+        for hparams_dict in _hparams_for_method(method_id): # method_id: 'Mithral'
             if verbose > 3:
                 print("got hparams: ")
                 pprint.pprint(hparams_dict)
@@ -342,6 +413,7 @@ def _main(tasks_func, methods=None, saveas=None, ntasks=None,
                 prev_X_std, prev_Y_std = None, None
                 est = None
                 for i, task in enumerate(tasks_func()):
+                    # task: MatmulTask(X_train, Y_train, X_test, Y_test, W, name='CIFAR-10 Softmax', info=info)
                     if i + 1 > limit_ntasks:
                         raise StopIteration()
                     if verbose > 1:
@@ -362,7 +434,7 @@ def _main(tasks_func, methods=None, saveas=None, ntasks=None,
 
                     if not can_reuse_est:
                         try:
-                            est = _fitted_est_for_hparams(
+                            est = _fitted_est_for_hparams( # <python.vq_amm.MithralMatmul object at 0x7fa3ee517ee0>
                                 method_id, hparams_dict,
                                 task.X_train, task.W_train, task.Y_train)
                         except amm.InvalidParametersException as e:
@@ -385,8 +457,21 @@ def _main(tasks_func, methods=None, saveas=None, ntasks=None,
                         # pprint.pprint(task.hashes())
 
                         for trial in range(ntrials):
-                            metrics = _eval_amm(
-                                task, est, compression_metrics=compression_metrics)
+                            # (Pdb) task
+                            # <python.matmul_datasets.MatmulTask object at 0x7f8d2db67e80>
+                            # (Pdb) est
+                            # <python.vq_amm.MithralMatmul object at 0x7f8d2db67eb0>
+                            if isinstance(est, amm_methods.METHOD_TO_ESTIMATOR['IntellistreamAMM']):
+                                metrics = _eval_amm_for_intellistream_amm(
+                                    task, est, intellistream_amm_config_load_path=intellistream_amm_config_load_path,intellistream_amm_metric_save_path=intellistream_amm_metric_save_path,)
+                            else:
+                                metrics = _eval_amm(
+                                    task, est, compression_metrics=compression_metrics)
+                            
+                            # (Pdb) task.X_test.shape
+                            # (10000, 512)
+                            # (Pdb) task.W_test.shape
+                            # (512, 10)
                             metrics['N'] = task.X_test.shape[0]
                             metrics['D'] = task.X_test.shape[1]
                             metrics['M'] = task.W_test.shape[1]
@@ -470,7 +555,7 @@ def main_ucr(methods=methods.USE_METHODS, saveas='ucr',
 def main_cifar10(methods=methods.USE_METHODS, saveas='cifar10'):
     # tasks = md.load_cifar10_tasks()
     return _main(tasks_func=md.load_cifar10_tasks, methods=methods,
-                 saveas=saveas, ntasks=1)
+                 saveas=saveas, ntasks=1) # md.load_cifar10_tasks: <function load_cifar10_tasks at 0x7f21f4c16680>
 
 
 def main_cifar100(methods=methods.USE_METHODS, saveas='cifar100'):
@@ -490,13 +575,12 @@ def main():
     # main_cifar10(methods='ScalarQuantize')
     # main_cifar100(methods='ScalarQuantize')
     # main_ucr(methods='ScalarQuantize')
-    main_caltech(methods='ScalarQuantize', filt='sobel')
-    main_caltech(methods='ScalarQuantize', filt='dog5x5')
+    # main_caltech(methods='ScalarQuantize', filt='sobel')
+    # main_caltech(methods='ScalarQuantize', filt='dog5x5')
 
+    main_cifar10(methods='Mithral')
     # main_cifar10(methods='MithralPQ')
     # main_cifar100(methods='Mithral')
-    # main_caltech(methods='Hadamard')
-    # main_cifar10(methods='MithralPQ')
     # main_cifar100(methods='MithralPQ')
     # main_ucr(methods='MithralPQ', k=64, limit_ntasks=5, problem='rbf')
     # main_ucr(methods='Bolt', k=64, limit_ntasks=5, problem='softmax')
@@ -532,8 +616,44 @@ def main():
     # main_caltech(methods='Bolt', limit_ntasks=10, limit_ntrain=500e3, filt='sobel')
     # main_caltech(methods='SparsePCA')
 
+def main_intellistream_amm(
+    config_load_path,
+    metric_save_path
+):
+    # cifar10
+    _main(tasks_func=md.load_cifar10_tasks, methods='IntellistreamAMM',
+                 saveas='tmp', ntasks=1,
+                 intellistream_amm_config_load_path=config_load_path,
+                 intellistream_amm_metric_save_path=metric_save_path)
+    # cifar 100
+    _main(tasks_func=md.load_cifar100_tasks, methods='IntellistreamAMM',
+                 saveas='tmp', ntasks=1,
+                 intellistream_amm_config_load_path=config_load_path,
+                 intellistream_amm_metric_save_path=metric_save_path)
+
 
 if __name__ == '__main__':
     np.set_printoptions(formatter={'float': lambda f: "{:.2f}".format(f)},
                         linewidth=100)
-    main()
+    
+    import argparse
+
+    argParser = argparse.ArgumentParser()
+    argParser.add_argument("-c", "--config_load_path", default=None, type=str, help="path to load c++ amm config")
+    argParser.add_argument("-m", "--metric_save_path", default=None, type=str, help="path to save c++ amm and downstream metrics")
+
+    args = argParser.parse_args()
+    # print(args.config_load_path, args.metric_save_path)
+
+    if args.config_load_path==None and args.metric_save_path==None:
+        main()
+
+    elif isinstance(args.config_load_path, str) and isinstance(args.metric_save_path, str):
+        main_intellistream_amm(
+            config_load_path = str(args.config_load_path),
+            metric_save_path = str(args.metric_save_path)
+        )
+
+
+    # example to call this module:
+    # yuhao@yuhao-EUL-WX9  ~/.../bolt/experiments   intellistream_amm ●  python3 -m python.amm_main --config_load_path "/home/yuhao/Documents/work/SUTD/AMM/codespace/coofd_cifar.csv" --metric_save_path "/home/yuhao/Documents/work/SUTD/AMM/codespace/amm_cifar.csv"

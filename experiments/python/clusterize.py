@@ -1400,6 +1400,8 @@ def _learn_mithral_initialization(X, ncodebooks,
         multisplits, _, buckets = learn_multisplits(
             use_X_res, X_orig=use_X_orig,
             return_centroids=False, return_buckets=True, **kwargs)
+        # (Pdb) multisplits [<python.clusterize.MultiSplit object at 0x7fc4c8511200>, <python.clusterize.MultiSplit object at 0x7fc4c8511600>, <python.clusterize.MultiSplit object at 0x7fc4c8511640>, <python.clusterize.MultiSplit object at 0x7fc4c8511680>]
+        # (Pdb) buckets [<python.clusterize.Bucket object at 0x7fc4c84ecf40>, <python.clusterize.Bucket object at 0x7fc4c84ed120>, <python.clusterize.Bucket object at 0x7fc4c84ed240>, <python.clusterize.Bucket object at 0x7fc4c84ed3c0>, <python.clusterize.Bucket object at 0x7fc4c84ed540>, <python.clusterize.Bucket object at 0x7fc4c84ed6c0>, <python.clusterize.Bucket object at 0x7fc4c84ed840>, <python.clusterize.Bucket object at 0x7fc4c84ed9c0>, <python.clusterize.Bucket object at 0x7fc4c84edb40>, <python.clusterize.Bucket object at 0x7fc4c84edcc0>, <python.clusterize.Bucket object at 0x7fc4c84ede40>, <python.clusterize.Bucket object at 0x7fc4c84edfc0>, <python.clusterize.Bucket object at 0x7fc4c84ee140>, <python.clusterize.Bucket object at 0x7fc4c84ee2c0>, <python.clusterize.Bucket object at 0x7fc4c84ee440>, <python.clusterize.Bucket object at 0x7fc4c84ee5c0>]
         for split in multisplits:
             split.dim = idxs[split.dim]
         all_splits.append(multisplits)

@@ -5,8 +5,10 @@ import numpy as np
 from sklearn import cluster
 from scipy import signal
 # import types
-
-import kmc2  # state-of-the-art kmeans initialization (as of NIPS 2016)
+import ctypes
+# Load the shared library
+kmc2 = ctypes.CDLL('/home/yuhao/Documents/work/SUTD/AMM/codespace/bolt/third_party/kmc2/kmc2.cpython-310-x86_64-linux-gnu.so')
+# import kmc2  # state-of-the-art kmeans initialization (as of NIPS 2016)
 
 from joblib import Memory
 _memory = Memory('.', verbose=0)

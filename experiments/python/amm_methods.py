@@ -31,6 +31,7 @@ METHOD_PQ_PERM_MULTISPLITS = 'PQ+Perm+MultiSplits'
 METHOD_MITHRALPQ = 'MithralPQ'
 METHOD_OLD_MITHRALPQ = 'OldMithralPQ'
 METHOD_MITHRAL = 'Mithral'
+METHOD_INTELLISTREAM_AMM = 'IntellistreamAMM'
 
 # these are for trying out different perm options
 METHOD_BOLT_GEHT_COV_TOPK = 'Bolt_CovTopk'
@@ -75,7 +76,8 @@ METHOD_TO_ESTIMATOR = {
     METHOD_PQ_PERM_MULTISPLITS: vq_amm.PQPermMultiSplits,
     METHOD_OLD_MITHRALPQ: vq_amm.OldMithralPQ,
     METHOD_MITHRALPQ: vq_amm.MithralPQ,
-    METHOD_MITHRAL: vq_amm.MithralMatmul
+    METHOD_MITHRAL: vq_amm.MithralMatmul,
+    METHOD_INTELLISTREAM_AMM: vq_amm.IntellistreamAMM
 }
 ALL_METHODS = sorted(list(METHOD_TO_ESTIMATOR.keys()))
 ALL_METHODS.remove(METHOD_SKETCH_SQ_SAMPLE),  # always terrible results
