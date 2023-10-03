@@ -340,7 +340,7 @@ class IntellistreamAMM(MithralMatmul):
         from pathlib import Path
         A = torch.from_numpy(A)
         B = torch.from_numpy(B)
-        torch.ops.load_library(str(Path(realpath(__file__)).parent.parent.parent.parent.parent.parent.parent  / "build" / "libIntelliStream.so"))
+        torch.ops.load_library(str(Path(realpath(__file__)).parent.parent.parent.parent.parent.parent.parent  / "libIntelliStream.so"))
         # torch.ops.AMMBench.setTag('mm')
         # return torch.ops.AMMBench.ammDefault(A, B).numpy()
         # self.intellistream_amm_config_load_path = "/home/yuhao/Documents/work/SUTD/AMM/codespace/coofd_cifar.csv"

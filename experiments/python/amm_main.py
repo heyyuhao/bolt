@@ -617,20 +617,22 @@ def main():
     # main_caltech(methods='SparsePCA')
 
 def main_intellistream_amm(
+    task,
     config_load_path,
     metric_save_path
 ):
-    # cifar10
-    _main(tasks_func=md.load_cifar10_tasks, methods='IntellistreamAMM',
+    if task=='cifar10':
+        _main(tasks_func=md.load_cifar10_tasks, methods='IntellistreamAMM',
+                    saveas='tmp', ntasks=1,
+                    intellistream_amm_config_load_path=config_load_path,
+                    intellistream_amm_metric_save_path=metric_save_path)
+    elif task=='cifar100':
+        _main(tasks_func=md.load_cifar100_tasks, methods='IntellistreamAMM',
                  saveas='tmp', ntasks=1,
                  intellistream_amm_config_load_path=config_load_path,
                  intellistream_amm_metric_save_path=metric_save_path)
-    # cifar 100
-    _main(tasks_func=md.load_cifar100_tasks, methods='IntellistreamAMM',
-                 saveas='tmp', ntasks=1,
-                 intellistream_amm_config_load_path=config_load_path,
-                 intellistream_amm_metric_save_path=metric_save_path)
-
+    else:
+        raise ValueError("For intellistream amm, we only evaluate on cifar10 and cifar100")
 
 if __name__ == '__main__':
     np.set_printoptions(formatter={'float': lambda f: "{:.2f}".format(f)},
@@ -639,6 +641,7 @@ if __name__ == '__main__':
     import argparse
 
     argParser = argparse.ArgumentParser()
+    argParser.add_argument("-t", "--task", default=None, type=str, help="cifar10 or cifar100")
     argParser.add_argument("-c", "--config_load_path", default=None, type=str, help="path to load c++ amm config")
     argParser.add_argument("-m", "--metric_save_path", default=None, type=str, help="path to save c++ amm and downstream metrics")
 
@@ -650,6 +653,7 @@ if __name__ == '__main__':
 
     elif isinstance(args.config_load_path, str) and isinstance(args.metric_save_path, str):
         main_intellistream_amm(
+            task = str(args.task),
             config_load_path = str(args.config_load_path),
             metric_save_path = str(args.metric_save_path)
         )
