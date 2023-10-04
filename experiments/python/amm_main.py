@@ -379,6 +379,23 @@ def _get_all_independent_vars():
 # @_memory.cache
 def _fitted_est_for_hparams(method_id, hparams_dict, X_train, W_train,
                             Y_train, **kwargs):
+
+    # save X_train, W_train for raw VQ and PQ codebook training
+    # import torch
+    # from torch import nn
+    # class TensorContainer(nn.Module):
+    #     def __init__(self, tensor_dict):
+    #         super().__init__()
+    #         for key,value in tensor_dict.items():
+    #             setattr(self, key, value)
+    # tensor_dict = {
+    #     "A": torch.from_numpy(X_train),
+    #     "B": torch.from_numpy(W_train)
+    # }
+    # tensors = TensorContainer(tensor_dict)
+    # tensors = torch.jit.script(tensors)
+    # tensors.save('/home/yuhao/Documents/work/SUTD/AMM/codespace/NEWAMMBENCH/AMMBench/benchmark/datasets/cifar/cifar100_train.pth')
+    
     est = _estimator_for_method_id(method_id, **hparams_dict)
     est.fit(X_train, W_train, Y=Y_train, **kwargs)
     return est
