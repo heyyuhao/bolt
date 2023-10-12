@@ -10,7 +10,9 @@ import ctypes
 from os.path import realpath
 from pathlib import Path
 
-kmc2 = ctypes.CDLL(Path(realpath(__file__)).parent.parent.parent / "third_party" / "kmc2" / "build" / "lib.linux-x86_64-3.10" / "kmc2.cpython-310-x86_64-linux-gnu.so")
+import glob
+kmc2_dir = Path(realpath(__file__)).parent.parent.parent / "third_party" / "kmc2"
+kmc2 = ctypes.CDLL(str(next(kmc2_dir.glob("*.so"))))
 # import kmc2  # state-of-the-art kmeans initialization (as of NIPS 2016)
 
 from joblib import Memory
