@@ -381,6 +381,8 @@ def _fitted_est_for_hparams(method_id, hparams_dict, X_train, W_train,
                             Y_train, **kwargs):
 
     # save X_train, W_train for raw VQ and PQ codebook training
+    # print(X_train.shape, W_train.shape)
+    # breakpoint()
     # import torch
     # from torch import nn
     # class TensorContainer(nn.Module):
@@ -595,9 +597,10 @@ def main():
     # main_caltech(methods='ScalarQuantize', filt='sobel')
     # main_caltech(methods='ScalarQuantize', filt='dog5x5')
 
-    main_cifar10(methods='Mithral')
+    # main_cifar10(methods='FastJL')
+    # main_cifar10(methods='Mithral')
     # main_cifar10(methods='MithralPQ')
-    # main_cifar100(methods='Mithral')
+    main_cifar100(methods='Mithral')
     # main_cifar100(methods='MithralPQ')
     # main_ucr(methods='MithralPQ', k=64, limit_ntasks=5, problem='rbf')
     # main_ucr(methods='Bolt', k=64, limit_ntasks=5, problem='softmax')
