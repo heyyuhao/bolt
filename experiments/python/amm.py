@@ -206,7 +206,9 @@ class SketchedMatmul(ApproxMatmul, abc.ABC):
         pass
 
     def call(self, A, B):
-        A_hat, B_hat = self.sketch(A, B)
+        # breakpoint()
+        # self.d=13
+        A_hat, B_hat = self.sketch(A, B) # under cifar10, when d=1, A_hat (10000, 1), B_hat (1, 10)
         assert A_hat.shape[0] == A.shape[0]
         assert B_hat.shape[1] == B.shape[1]
         assert A_hat.shape[1] <= self.d  # verify sketch size not cheating
@@ -879,6 +881,7 @@ def fastjl_sketches(A, B, d, P=None):
         # have expected value of 1
         P *= np.random.randn(*P.shape)
         P *= (1. / np.linalg.norm(P, axis=0))
+        # P /= np.sqrt(float(d))
 
     # print("P shape, Apad shape, Bpad shape: ", P.shape, A_pad.shape, B_pad.shape)
     return A_pad @ P, P.T @ B_pad
